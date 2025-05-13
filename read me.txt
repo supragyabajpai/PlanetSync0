@@ -1,60 +1,90 @@
 import pandas as pd
 
-# Sample Data
+# Updated Data
 data = {
     "team name": [
         "team a", "team a", "team a",
         "team b", "team b",
         "team c", "team c", "team c",
-        "team d"
+        "team d",
+        "team e", "team e"
     ],
     "member": [
         "member a", "member b", "memberc",
         "member e", "member d",
         "member f", "member g", "member j",
-        "member k"
+        "member k",
+        "member z", "member u"
     ],
     "status": [
         "active", "active", "active",
         "active", "inactive",
         "active", "inactive", "inactive",
-        "active"
+        "active",
+        "inactive", "inactive"
+    ],
+    "Team Status": [
+        "Inactive", "Inactive", "Inactive",
+        "Active", "Active",
+        "Active", "Active", "Active",
+        "Active",
+        "Active", "Active"
     ]
 }
 
 # Create DataFrame
 df = pd.DataFrame(data)
 
-# Group by team and check statuses
+# Grouping
 grouped = df.groupby("team name")
 
-# a) All inactive
-all_inactive = grouped.filter(lambda x: all(x["status"] == "inactive"))
-all_inactive_teams = all_inactive["team name"].unique()
+# --- Previous Four Conditions ---
 
-# b) One active, one inactive
-mixed_one_one = grouped.filter(
-    lambda x: len(x) == 2 and "active" in x["status"].values and "inactive" in x["status"].values
-)
-mixed_one_one_teams = mixed_one_one["team name"].unique()
+teams_all_inactive = [team for team, group in grouped if all(group["status"] == "inactive")]
+df_all_inactive = df[df["team name"].isin(teams_all_inactive)]
 
-# c) All active
-all_active = grouped.filter(lambda x: all(x["status"] == "active"))
-all_active_teams = all_active["team name"].unique()
+teams_one_active_one_inactive = [
+    team for team, group in grouped
+    if len(group) == 2 and "active" in group["status"].values and "inactive" in group["status"].values
+]
+df_one_active_one_inactive = df[df["team name"].isin(teams_one_active_one_inactive)]
 
-# d) At least one inactive
-at_least_one_inactive = grouped.filter(lambda x: "inactive" in x["status"].values)
-at_least_one_inactive_teams = at_least_one_inactive["team name"].unique()
+teams_all_active = [team for team, group in grouped if all(group["status"] == "active")]
+df_all_active = df[df["team name"].isin(teams_all_active)]
 
-# Display counts
-print("Count of teams where all members are inactive:", len(all_inactive_teams))
-print("Count of teams with one active and one inactive member:", len(mixed_one_one_teams))
-print("Count of teams where all members are active:", len(all_active_teams))
-print("Count of teams where at least one member is inactive:", len(at_least_one_inactive_teams))
+teams_at_least_one_inactive = [team for team, group in grouped if "inactive" in group["status"].values]
+df_at_least_one_inactive = df[df["team name"].isin(teams_at_least_one_inactive)]
 
-# Export to Excel
-with pd.ExcelWriter("team_status_report.xlsx", engine='openpyxl') as writer:
-    all_inactive.to_excel(writer, sheet_name="All Inactive", index=False)
-    mixed_one_one.to_excel(writer, sheet_name="One Active One Inactive", index=False)
-    all_active.to_excel(writer, sheet_name="All Active", index=False)
-    at_least_one_inactive.to_excel(writer, sheet_name="At Least One Inactive", index=False)
+# --- New Mismatch Conditions ---
+
+# 1. Declared Active but All Inactive Members
+teams_declared_active_all_members_inactive = [
+    team for team, group in grouped
+    if all(group["status"] == "inactive") and all(group["Team Status"] == "Active")
+]
+df_active_mismatch = df[df["team name"].isin(teams_declared_active_all_members_inactive)]
+
+# 2. Declared Inactive but All Active Members
+teams_declared_inactive_all_members_active = [
+    team for team, group in grouped
+    if all(group["status"] == "active") and all(group["Team Status"] == "Inactive")
+]
+df_inactive_mismatch = df[df["team name"].isin(teams_declared_inactive_all_members_active)]
+
+# --- Display Counts ---
+
+print("All members inactive:", len(teams_all_inactive))
+print("One active and one inactive:", len(teams_one_active_one_inactive))
+print("All active:", len(teams_all_active))
+print("At least one inactive:", len(teams_at_least_one_inactive))
+print("Declared Active but all members Inactive:", len(teams_declared_active_all_members_inactive))
+print("Declared Inactive but all members Active:", len(teams_declared_inactive_all_members_active))
+
+# --- Write to Excel ---
+with pd.ExcelWriter("team_status_report.xlsx", engine="openpyxl") as writer:
+    df_all_inactive.to_excel(writer, sheet_name="All Inactive", index=False)
+    df_one_active_one_inactive.to_excel(writer, sheet_name="One Active One Inactive", index=False)
+    df_all_active.to_excel(writer, sheet_name="All Active", index=False)
+    df_at_least_one_inactive.to_excel(writer, sheet_name="At Least One Inactive", index=False)
+    df_active_mismatch.to_excel(writer, sheet_name="Team Active But All Inactive", index=False)
+    df_inactive_mismatch.to_excel(writer, sheet_name="Team Inactive But All Active", index=False)
