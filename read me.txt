@@ -1,0 +1,60 @@
+import pandas as pd
+
+# Sample Data
+data = {
+    "team name": [
+        "team a", "team a", "team a",
+        "team b", "team b",
+        "team c", "team c", "team c",
+        "team d"
+    ],
+    "member": [
+        "member a", "member b", "memberc",
+        "member e", "member d",
+        "member f", "member g", "member j",
+        "member k"
+    ],
+    "status": [
+        "active", "active", "active",
+        "active", "inactive",
+        "active", "inactive", "inactive",
+        "active"
+    ]
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Group by team and check statuses
+grouped = df.groupby("team name")
+
+# a) All inactive
+all_inactive = grouped.filter(lambda x: all(x["status"] == "inactive"))
+all_inactive_teams = all_inactive["team name"].unique()
+
+# b) One active, one inactive
+mixed_one_one = grouped.filter(
+    lambda x: len(x) == 2 and "active" in x["status"].values and "inactive" in x["status"].values
+)
+mixed_one_one_teams = mixed_one_one["team name"].unique()
+
+# c) All active
+all_active = grouped.filter(lambda x: all(x["status"] == "active"))
+all_active_teams = all_active["team name"].unique()
+
+# d) At least one inactive
+at_least_one_inactive = grouped.filter(lambda x: "inactive" in x["status"].values)
+at_least_one_inactive_teams = at_least_one_inactive["team name"].unique()
+
+# Display counts
+print("Count of teams where all members are inactive:", len(all_inactive_teams))
+print("Count of teams with one active and one inactive member:", len(mixed_one_one_teams))
+print("Count of teams where all members are active:", len(all_active_teams))
+print("Count of teams where at least one member is inactive:", len(at_least_one_inactive_teams))
+
+# Export to Excel
+with pd.ExcelWriter("team_status_report.xlsx", engine='openpyxl') as writer:
+    all_inactive.to_excel(writer, sheet_name="All Inactive", index=False)
+    mixed_one_one.to_excel(writer, sheet_name="One Active One Inactive", index=False)
+    all_active.to_excel(writer, sheet_name="All Active", index=False)
+    at_least_one_inactive.to_excel(writer, sheet_name="At Least One Inactive", index=False)
