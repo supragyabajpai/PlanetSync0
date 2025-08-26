@@ -16,9 +16,6 @@ df = pd.read_csv(file_path)
 # Ensure date column is in datetime format
 df['Sales Date (parsed)'] = pd.to_datetime(df['Sales Date (parsed)'])
 
-# ================================
-# 2. Define forecast function
-# ================================
 def forecast_owner(df, owner_name, target_col, horizon_months=6):
     """
     Train Prophet model for one owner and one sales column.
@@ -27,7 +24,11 @@ def forecast_owner(df, owner_name, target_col, horizon_months=6):
     owner_df = df[df['Owner Name'] == owner_name][['Sales Date (parsed)', target_col]].copy()
     owner_df = owner_df.rename(columns={'Sales Date (parsed)': 'ds', target_col: 'y'})
     
-    # Train/validation split (train until June 2025, validate on July 2025 onwards)
+    # Handle missing values
+    owner_df['y'] = owner_df['y'].fillna(0)   # Option 1: replace NaN with 0
+    # owner_df = owner_df.dropna()            # Option 2: drop rows with NaN
+    
+    # Train/validation split
     train_df = owner_df[owner_df['ds'] < "2025-07-01"]
     valid_df = owner_df[owner_df['ds'] >= "2025-07-01"]
     
@@ -35,11 +36,11 @@ def forecast_owner(df, owner_name, target_col, horizon_months=6):
     model = Prophet(daily_seasonality=False, yearly_seasonality=True, weekly_seasonality=True)
     model.fit(train_df)
     
-    # Forecast
-    future = model.make_future_dataframe(periods=horizon_months*30, freq='D')  # daily forecast
+    # Forecast future horizon
+    future = model.make_future_dataframe(periods=horizon_months*30, freq='D')
     forecast = model.predict(future)
     
-    # Validation (align by dates in validation period)
+    # Validation
     forecast_valid = forecast.set_index("ds").loc[valid_df['ds']]
     y_true = valid_df['y'].values
     y_pred = forecast_valid['yhat'].values
@@ -48,6 +49,7 @@ def forecast_owner(df, owner_name, target_col, horizon_months=6):
     rmse = np.sqrt(mse)
     
     return forecast, mse, rmse
+
 
 # ================================
 # 3. Run forecasts for each Owner & Column
