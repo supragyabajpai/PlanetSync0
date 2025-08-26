@@ -1,0 +1,79 @@
+# ================================
+# Facebook Prophet Forecast Script
+# ================================
+
+import pandas as pd
+from prophet import Prophet
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
+
+# ================================
+# 1. Load the dataset
+# ================================
+file_path = "your_sales_data.csv"   # replace with actual file path
+df = pd.read_csv(file_path)
+
+# Ensure date column is in datetime format
+df['Sales Date (parsed)'] = pd.to_datetime(df['Sales Date (parsed)'])
+
+# ================================
+# 2. Define forecast function
+# ================================
+def forecast_owner(df, owner_name, target_col, horizon_months=6):
+    """
+    Train Prophet model for one owner and one sales column.
+    Returns forecast dataframe and validation metrics.
+    """
+    owner_df = df[df['Owner Name'] == owner_name][['Sales Date (parsed)', target_col]].copy()
+    owner_df = owner_df.rename(columns={'Sales Date (parsed)': 'ds', target_col: 'y'})
+    
+    # Train/validation split (train until June 2025, validate on July 2025 onwards)
+    train_df = owner_df[owner_df['ds'] < "2025-07-01"]
+    valid_df = owner_df[owner_df['ds'] >= "2025-07-01"]
+    
+    # Prophet model
+    model = Prophet(daily_seasonality=False, yearly_seasonality=True, weekly_seasonality=True)
+    model.fit(train_df)
+    
+    # Forecast
+    future = model.make_future_dataframe(periods=horizon_months*30, freq='D')  # daily forecast
+    forecast = model.predict(future)
+    
+    # Validation (align by dates in validation period)
+    forecast_valid = forecast.set_index("ds").loc[valid_df['ds']]
+    y_true = valid_df['y'].values
+    y_pred = forecast_valid['yhat'].values
+    
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    
+    return forecast, mse, rmse
+
+# ================================
+# 3. Run forecasts for each Owner & Column
+# ================================
+owners = df['Owner Name'].unique()
+sales_cols = ['Purchases Inc Switch In', 'Redemptions', 'Net Sales Inc Switch In']
+
+results = []
+
+for owner in owners:
+    for col in sales_cols:
+        forecast, mse, rmse = forecast_owner(df, owner, col, horizon_months=6)
+        
+        # Keep only forecast from July–Dec 2025
+        forecast_jul_dec = forecast[(forecast['ds'] >= "2025-07-01") & (forecast['ds'] <= "2025-12-31")]
+        forecast_jul_dec['Owner Name'] = owner
+        forecast_jul_dec['Metric'] = col
+        forecast_jul_dec['MSE'] = mse
+        forecast_jul_dec['RMSE'] = rmse
+        
+        results.append(forecast_jul_dec[['ds','Owner Name','Metric','yhat','yhat_lower','yhat_upper','MSE','RMSE']])
+
+# ================================
+# 4. Save Output
+# ================================
+final_output = pd.concat(results)
+final_output.to_excel("sales_forecast_output.xlsx", index=False)
+
+print("✅ Forecast complete. File saved as sales_forecast_output.xlsx")
